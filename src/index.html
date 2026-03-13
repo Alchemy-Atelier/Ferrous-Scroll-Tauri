@@ -16,23 +16,23 @@
                     <h1><i class="fas fa-scroll"></i> Ferrous Scroll</h1>
                     <p class="subtitle">记录卷轴</p>
                 </div>
-                <button class="settings-icon-btn" onclick="todoApp.toggleSettingsMenu()" title="设置">
+                <button class="settings-icon-btn" id="settings-btn" title="设置">
                     <i class="fas fa-cog"></i>
                 </button>
             </div>
             
             <!-- 集成在header中的标签页导航 -->
             <div class="page-tabs">
-                <button class="tab-btn active" onclick="todoApp.switchPage('main')">
+                <button class="tab-btn active" data-page="main">
                     <i class="fas fa-scroll"></i> 任务卷轴
                 </button>
-                <button class="tab-btn" onclick="todoApp.switchPage('tags')">
+                <button class="tab-btn" data-page="tags">
                     <i class="fas fa-tags"></i> 标签管理
                 </button>
-                <button class="tab-btn" onclick="todoApp.switchPage('categories')">
+                <button class="tab-btn" data-page="categories">
                     <i class="fas fa-folder"></i> 分类管理
                 </button>
-                <button class="tab-btn" onclick="todoApp.switchPage('export')">
+                <button class="tab-btn" data-page="export">
                     <i class="fas fa-download"></i> 导出选项
                 </button>
             </div>
@@ -60,10 +60,10 @@
                     </div>
                     
                     <div class="settings-dropdown-actions">
-                        <button class="settings-save-btn" onclick="todoApp.saveSettingsFromMenu()">
+                        <button class="settings-save-btn" id="settings-save-btn">
                             <i class="fas fa-save"></i> 保存
                         </button>
-                        <button class="settings-reset-btn" onclick="todoApp.resetSettings()">
+                        <button class="settings-reset-btn" id="settings-reset-btn">
                             <i class="fas fa-undo"></i> 恢复默认
                         </button>
                     </div>
@@ -90,7 +90,7 @@
                     </div>
                     <div class="form-row">
                         <div id="selected-tags" class="selected-tags"></div>
-                        <button type="button" class="tag-selector-btn" onclick="todoApp.openTagSelector()">
+                        <button type="button" class="tag-selector-btn" id="tag-selector-btn">
                             <i class="fas fa-tags"></i> 选择标签
                         </button>
                         <button type="submit" id="add-btn">
@@ -102,7 +102,7 @@
 
             <!-- 筛选和排序 -->
             <div class="filter-panel">
-                <div class="filter-header" onclick="todoApp.toggleFilterPanel()">
+                <div class="filter-header" id="filter-header">
                     <h3><i class="fas fa-filter"></i> 筛选选项</h3>
                     <i class="fas fa-chevron-down filter-toggle-icon"></i>
                 </div>
@@ -157,13 +157,13 @@
                 <!-- 底部批量操作栏 -->
                 <div class="scroll-footer">
                     <div class="scroll-actions">
-                        <button class="select-all-btn" onclick="todoApp.toggleSelectAll()" title="全选/取消全选">
+                        <button class="select-all-btn" id="select-all-btn" title="全选/取消全选">
                             <i class="fas fa-check-double"></i> 全选
                         </button>
-                        <button class="batch-complete-btn" onclick="todoApp.batchComplete()" title="批量标记完成" style="display: none;">
+                        <button class="batch-complete-btn" id="batch-complete-btn" title="批量标记完成" style="display: none;">
                             <i class="fas fa-check-circle"></i> 标记完成
                         </button>
-                        <button class="batch-delete-btn" onclick="todoApp.batchDelete()" title="批量删除" style="display: none;">
+                        <button class="batch-delete-btn" id="batch-delete-btn" title="批量删除" style="display: none;">
                             <i class="fas fa-trash"></i> 删除选中
                         </button>
                     </div>
@@ -199,7 +199,7 @@
                 <div class="create-form">
                     <input type="text" id="new-tag-name" placeholder="标签名称" maxlength="20">
                     <input type="color" id="new-tag-color" value="#3b82f6">
-                    <button onclick="todoApp.createTag()">
+                    <button id="create-tag-btn">
                         <i class="fas fa-plus"></i> 创建标签
                     </button>
                 </div>
@@ -216,10 +216,10 @@
                     <input type="text" id="new-category-name" placeholder="分类名称" maxlength="30">
                     <input type="text" id="new-category-desc" placeholder="分类描述（可选）">
                     <input type="color" id="new-category-color" value="#10b981">
-                    <button type="button" class="category-tag-selector-btn" onclick="todoApp.openCategoryTagSelector()">
+                    <button type="button" class="category-tag-selector-btn" id="category-tag-selector-btn">
                         <i class="fas fa-tags"></i> 选择标签
                     </button>
-                    <button onclick="todoApp.createCategory()">
+                    <button id="create-category-btn">
                         <i class="fas fa-plus"></i> 创建分类
                     </button>
                 </div>
@@ -244,7 +244,7 @@
                     <div class="export-option-content">
                         <h4>导出全部任务</h4>
                         <p>导出所有任务、标签和分类的完整数据</p>
-                        <button class="export-btn-primary" onclick="todoApp.exportToMarkdown()">
+                        <button class="export-btn-primary" id="export-all-btn">
                             <i class="fas fa-download"></i> 导出全部
                         </button>
                     </div>
@@ -258,7 +258,7 @@
                         <p>选择特定周的任务，生成周报</p>
                         <div class="week-selector">
                             <input type="week" id="week-select" class="week-input">
-                            <button class="export-btn-primary" onclick="todoApp.exportByWeek()">
+                            <button class="export-btn-primary" id="export-week-btn">
                                 <i class="fas fa-calendar-week"></i> 导出周报
                             </button>
                         </div>
@@ -277,7 +277,7 @@
                                 <span class="date-separator">至</span>
                                 <input type="date" id="export-end-date" class="date-input-small" placeholder="结束日期">
                             </div>
-                            <button class="export-btn-primary" onclick="todoApp.exportByDateRange()">
+                            <button class="export-btn-primary" id="export-range-btn">
                                 <i class="fas fa-calendar-alt"></i> 导出范围
                             </button>
                         </div>
@@ -291,13 +291,13 @@
                         <h4>快速导出</h4>
                         <p>一键导出常用时间范围</p>
                         <div class="quick-export-buttons">
-                            <button class="quick-export-btn" onclick="todoApp.exportToday()">
+                            <button class="quick-export-btn" id="export-today-btn">
                                 <i class="fas fa-calendar-day"></i> 今日
                             </button>
-                            <button class="quick-export-btn" onclick="todoApp.exportThisWeek()">
+                            <button class="quick-export-btn" id="export-this-week-btn">
                                 <i class="fas fa-calendar-week"></i> 本周
                             </button>
-                            <button class="quick-export-btn" onclick="todoApp.exportThisMonth()">
+                            <button class="quick-export-btn" id="export-this-month-btn">
                                 <i class="fas fa-calendar"></i> 本月
                             </button>
                         </div>
@@ -328,99 +328,8 @@
         </div>
     </div>
 
-    <!-- Tauri v2 API 初始化脚本 -->
-    <script>
-      (function() {
-        console.log('初始化 Tauri API...');
-        
-        // 确保 __TAURI__ 对象存在
-        if (!window.__TAURI__) {
-          window.__TAURI__ = {};
-        }
-        
-        // 创建 invoke 方法包装器
-        window.__TAURI__.invoke = async function(cmd, args = {}) {
-          console.log(`调用命令: ${cmd}`, args);
-          
-          try {
-            // Tauri v2 使用 __TAURI_INTERNALS__
-            if (window.__TAURI_INTERNALS__ && window.__TAURI_INTERNALS__.invoke) {
-              const result = await window.__TAURI_INTERNALS__.invoke(cmd, args);
-              console.log(`命令 ${cmd} 成功:`, result);
-              return result;
-            }
-            // 如果有 core.invoke
-            else if (window.__TAURI__.core && window.__TAURI__.core.invoke) {
-              const result = await window.__TAURI__.core.invoke(cmd, args);
-              console.log(`命令 ${cmd} 成功:`, result);
-              return result;
-            }
-            // 尝试直接使用 ipc
-            else if (window.__TAURI_IPC__) {
-              const result = await window.__TAURI_IPC__.invoke(cmd, args);
-              console.log(`命令 ${cmd} 成功:`, result);
-              return result;
-            }
-            else {
-              throw new Error('Tauri API 不可用 - 找不到 invoke 方法');
-            }
-          } catch (error) {
-            console.error(`调用 ${cmd} 失败:`, error);
-            throw error;
-          }
-        };
-        
-        // 等待并加载 Tauri Dialog API
-        const loadDialogAPI = async () => {
-          try {
-            // 等待 Tauri core 加载
-            await new Promise(resolve => setTimeout(resolve, 100));
-            
-            // 尝试加载 dialog 模块
-            if (window.__TAURI_INTERNALS__) {
-              // Tauri v2 方式
-              const { confirm } = window.__TAURI_INTERNALS__.dialog || {};
-              if (confirm) {
-                window.__TAURI__.dialog = { confirm };
-                console.log('✅ Dialog API 已从 __TAURI_INTERNALS__ 加载');
-                return;
-              }
-            }
-            
-            // 创建 dialog API 包装器（使用 invoke）
-            window.__TAURI__.dialog = {
-              confirm: async function(message, options = {}) {
-                console.log('调用 dialog.confirm (invoke):', message, options);
-                try {
-                  const result = await window.__TAURI__.invoke('plugin:dialog|confirm', {
-                    message: message,
-                    title: options.title || '确认'
-                  });
-                  console.log('dialog.confirm 结果:', result);
-                  return result;
-                } catch (error) {
-                  console.error('dialog.confirm 失败:', error);
-                  throw error;
-                }
-              }
-            };
-            console.log('✅ Dialog API 已创建 (invoke wrapper)');
-          } catch (error) {
-            console.error('加载 Dialog API 失败:', error);
-          }
-        };
-        
-        loadDialogAPI();
-        
-        console.log('✅ Tauri API wrapper 已初始化');
-        console.log('可用的 Tauri 对象:', {
-          __TAURI__: !!window.__TAURI__,
-          __TAURI_INTERNALS__: !!window.__TAURI_INTERNALS__,
-          __TAURI_IPC__: !!window.__TAURI_IPC__,
-          dialog: !!window.__TAURI__.dialog
-        });
-      })();
-    </script>
+    <!-- 加载 Tauri API 包装器 -->
+    <script src="tauri-api.js"></script>
     <script src="script.js"></script>
 </body>
 </html>

@@ -17,6 +17,8 @@ class TodoApp {
 
     // Tauri invoke 辅助函数
     async invoke(command, args = {}) {
+        console.log(`🔧 准备调用命令: ${command}`, args);
+        
         // 检查 Tauri API 是否可用
         if (!window.__TAURI__ || !window.__TAURI__.invoke) {
             const error = 'Tauri API 未加载，请确保在 Tauri 环境中运行应用';
@@ -26,9 +28,11 @@ class TodoApp {
         }
         
         try {
-            return await window.__TAURI__.invoke(command, args);
+            const result = await window.__TAURI__.invoke(command, args);
+            console.log(`✅ 命令 ${command} 执行成功:`, result);
+            return result;
         } catch (error) {
-            console.error(`Tauri invoke 错误 [${command}]:`, error);
+            console.error(`❌ Tauri invoke 错误 [${command}]:`, error);
             throw new Error(error);
         }
     }
@@ -36,29 +40,36 @@ class TodoApp {
     // 等待 Tauri API 加载
     async waitForTauri() {
         let attempts = 0;
-        const maxAttempts = 50; // 最多等待5秒
+        const maxAttempts = 100; // 最多等待10秒
         
         while (attempts < maxAttempts) {
             if (window.__TAURI__ && window.__TAURI__.invoke) {
                 console.log('✅ Tauri API 已加载');
                 return true;
             }
+            
+            console.log(`⏳ 等待 Tauri API 加载... (${attempts + 1}/${maxAttempts})`);
             await new Promise(resolve => setTimeout(resolve, 100));
             attempts++;
         }
         
         console.error('❌ Tauri API 加载超时');
-        return false;
+        throw new Error('Tauri API 加载超时，请刷新页面重试');
     }
 
     // 初始化应用
     async init() {
-        // 等待 Tauri API 加载
-        const tauriReady = await this.waitForTauri();
-        if (!tauriReady) {
-            this.showError('无法加载 Tauri API，应用可能无法正常工作');
+        console.log('🚀 初始化应用...');
+        
+        // 检查 Tauri API 是否可用
+        if (!window.__TAURI__ || !window.__TAURI__.invoke) {
+            console.warn('⚠️ Tauri API 尚未加载，将在稍后重试');
+            // 延迟重试
+            setTimeout(() => this.init(), 1000);
             return;
         }
+        
+        console.log('✅ Tauri API 已可用，继续初始化');
 
         this.bindEvents();
         await Promise.all([
@@ -81,6 +92,9 @@ class TodoApp {
             e.preventDefault();
             this.addTodo();
         });
+
+        // 绑定所有按钮事件
+        this.bindButtonEvents();
 
         // 筛选器
         const statusFilter = document.getElementById('status-filter');
@@ -134,6 +148,62 @@ class TodoApp {
                     }
                 } else {
                     console.error('🔘 todoId 为空！');
+                }
+                return;
+            }
+
+            // 切换任务收缩状态
+            const collapseBtn = e.target.closest('.collapse-todo-btn');
+            if (collapseBtn) {
+                e.preventDefault();
+                const todoId = collapseBtn.dataset.todoId;
+                if (todoId) {
+                    this.toggleTodoCollapse(todoId);
+                }
+                return;
+            }
+
+            // 收缩标题点击
+            const collapsedTitle = e.target.closest('.scroll-title-collapsed');
+            if (collapsedTitle) {
+                e.preventDefault();
+                const todoId = collapsedTitle.dataset.todoId;
+                if (todoId) {
+                    this.toggleTodoCollapse(todoId);
+                }
+                return;
+            }
+
+            // 添加子任务按钮
+            const addSubtaskBtn = e.target.closest('.add-subtask-btn');
+            if (addSubtaskBtn) {
+                e.preventDefault();
+                const todoId = addSubtaskBtn.dataset.todoId;
+                if (todoId) {
+                    this.toggleSubtaskForm(todoId);
+                }
+                return;
+            }
+
+            // 状态按钮
+            const statusBtn = e.target.closest('.status-btn');
+            if (statusBtn) {
+                e.preventDefault();
+                const todoId = statusBtn.dataset.todoId;
+                const status = statusBtn.dataset.status;
+                if (todoId && status) {
+                    this.updateTodoStatus(todoId, status);
+                }
+                return;
+            }
+
+            // 导出单个任务按钮
+            const exportTodoBtn = e.target.closest('.export-todo-btn');
+            if (exportTodoBtn) {
+                e.preventDefault();
+                const todoId = exportTodoBtn.dataset.todoId;
+                if (todoId) {
+                    this.exportSingleTodo(todoId);
                 }
                 return;
             }
@@ -192,6 +262,58 @@ class TodoApp {
                 if (categoryId) {
                     console.log('🔘 点击删除分类按钮，ID:', categoryId);
                     this.deleteCategory(categoryId);
+                }
+                return;
+            }
+
+            // 分类编辑按钮
+            const editCategoryBtn = e.target.closest('.edit-btn-small');
+            if (editCategoryBtn) {
+                e.preventDefault();
+                const categoryId = editCategoryBtn.dataset.categoryId;
+                const action = editCategoryBtn.dataset.action;
+                if (categoryId && action === 'edit') {
+                    this.editCategory(categoryId);
+                } else if (categoryId && action === 'edit-tags') {
+                    this.editCategoryTags(categoryId);
+                }
+                return;
+            }
+
+            // 分类标签选择器中的标签项
+            const categoryTagSelectorItem = e.target.closest('.category-tag-selector-item');
+            if (categoryTagSelectorItem) {
+                e.preventDefault();
+                const tagId = categoryTagSelectorItem.dataset.tagId;
+                if (tagId) {
+                    this.toggleCategoryTagSelection(tagId);
+                }
+                return;
+            }
+
+            // 已选分类标签的删除按钮
+            const categoryTagRemoveBtn = e.target.closest('.selected-tag .fa-times');
+            if (categoryTagRemoveBtn && categoryTagRemoveBtn.dataset.categoryTagId) {
+                e.preventDefault();
+                const tagId = categoryTagRemoveBtn.dataset.categoryTagId;
+                if (tagId) {
+                    this.toggleCategoryTagSelection(tagId);
+                }
+                return;
+            }
+
+            // 模态框按钮
+            const modalBtn = e.target.closest('[data-action]');
+            if (modalBtn) {
+                e.preventDefault();
+                const action = modalBtn.dataset.action;
+                if (action === 'close-modal') {
+                    modalBtn.closest('.modal').remove();
+                } else if (action === 'save-category') {
+                    const categoryId = modalBtn.dataset.categoryId;
+                    if (categoryId) {
+                        this.saveCategoryInfo(categoryId);
+                    }
                 }
                 return;
             }
@@ -269,6 +391,28 @@ class TodoApp {
             if (e.target.closest('.batch-delete-btn')) {
                 e.preventDefault();
                 this.batchDelete();
+                return;
+            }
+
+            // 标签选择器中的标签项
+            const tagSelectorItem = e.target.closest('.tag-selector-item');
+            if (tagSelectorItem) {
+                e.preventDefault();
+                const tagId = tagSelectorItem.dataset.tagId;
+                if (tagId) {
+                    this.toggleTagSelection(tagId);
+                }
+                return;
+            }
+
+            // 已选标签的删除按钮
+            const tagRemoveBtn = e.target.closest('.selected-tag .fa-times');
+            if (tagRemoveBtn) {
+                e.preventDefault();
+                const tagId = tagRemoveBtn.dataset.tagId;
+                if (tagId) {
+                    this.toggleTagSelection(tagId);
+                }
                 return;
             }
 
@@ -506,19 +650,24 @@ class TodoApp {
     // 显示确认对话框 (使用 Tauri Dialog API)
     async showConfirm(title, message) {
         try {
+            console.log(`🔧 显示确认对话框: ${title} - ${message}`);
+            
             // 尝试使用 Tauri v2 的 Dialog API
-            if (window.__TAURI__ && window.__TAURI__.dialog) {
+            if (window.__TAURI__ && window.__TAURI__.dialog && window.__TAURI__.dialog.confirm) {
+                console.log('✅ 使用 Tauri Dialog API');
                 const result = await window.__TAURI__.dialog.confirm(message, { title: title });
+                console.log('✅ 确认对话框结果:', result);
                 return result;
             }
-            // 如果 Tauri API 不可用，回退到浏览器的 confirm
+            // 备用方案：使用浏览器原生 confirm
             else {
-                console.warn('Tauri Dialog API 不可用，使用浏览器原生 confirm');
+                console.warn('⚠️ Tauri Dialog API 不可用，使用浏览器原生 confirm');
                 return confirm(message);
             }
         } catch (error) {
-            console.error('显示确认对话框失败:', error);
-            // 出错时回退到浏览器的 confirm
+            console.error('❌ Dialog API 调用失败:', error);
+            // 备用方案：使用浏览器原生 confirm
+            console.warn('⚠️ 使用浏览器原生 confirm 作为备用方案');
             return confirm(message);
         }
     }
@@ -632,7 +781,7 @@ class TodoApp {
                            class="subtask-quick-input" 
                            placeholder="按 Enter 添加子任务，Esc 取消" 
                            autofocus>
-                    <button class="subtask-quick-btn" onclick="todoApp.addSubtask('${parentId}')" title="添加">
+                    <button class="subtask-quick-btn" data-parent-id="${parentId}" title="添加">
                         <i class="fas fa-plus"></i>
                     </button>
                 </div>
@@ -640,6 +789,12 @@ class TodoApp {
         `;
 
         subtasksContainer.insertAdjacentHTML('beforeend', formHtml);
+
+        // 为动态生成的按钮添加事件监听器
+        const addBtn = document.querySelector(`[data-parent-id="${parentId}"]`);
+        if (addBtn) {
+            addBtn.addEventListener('click', () => this.addSubtask(parentId));
+        }
 
         // 聚焦到输入框
         const titleInput = document.getElementById(`subtask-title-${parentId}`);
@@ -993,7 +1148,7 @@ class TodoApp {
                     <div class="scroll-left"></div>
                     <div class="scroll-content">
                         <!-- 收缩后的标题显示 -->
-                        <div class="scroll-title-collapsed" onclick="todoApp.toggleTodoCollapse('${todo.id}')">
+                        <div class="scroll-title-collapsed" data-todo-id="${todo.id}">
                             <span class="collapsed-title">${this.escapeHtml(todo.title)}</span>
                             ${subtaskStats.total > 0 ? `<span class="subtask-indicator">(${subtaskStats.completed}/${subtaskStats.total})</span>` : ''}
                             <span class="priority-indicator priority-${todo.priority.toLowerCase()}"></span>
@@ -1009,7 +1164,7 @@ class TodoApp {
                                            data-todo-id="${todo.id}"
                                            ${isCompleted ? 'checked' : ''}>
                                     <span class="todo-text">${this.escapeHtml(todo.title)}</span>
-                                    <button class="collapse-todo-btn" onclick="todoApp.toggleTodoCollapse('${todo.id}')" title="收缩任务">
+                                    <button class="collapse-todo-btn" data-todo-id="${todo.id}" title="收缩任务">
                                         <i class="fas fa-chevron-up"></i>
                                     </button>
                                 </div>
@@ -1043,18 +1198,18 @@ class TodoApp {
                                 <span class="todo-date">🕒 ${createdAt}</span>
                             </div>
                             <div class="todo-actions">
-                                <button class="action-btn add-subtask-btn" onclick="todoApp.toggleSubtaskForm('${todo.id}')" title="添加子任务">
+                                <button class="action-btn add-subtask-btn" data-todo-id="${todo.id}" title="添加子任务">
                                     <i class="fas fa-plus"></i>
                                 </button>
                                 ${todo.status !== 'InProgress' ? 
-                                    `<button class="action-btn status-btn" onclick="todoApp.updateTodoStatus('${todo.id}', 'InProgress')" title="标记为进行中">
+                                    `<button class="action-btn status-btn" data-todo-id="${todo.id}" data-status="InProgress" title="标记为进行中">
                                         <i class="fas fa-play"></i>
                                     </button>` : 
-                                    `<button class="action-btn status-btn" onclick="todoApp.updateTodoStatus('${todo.id}', 'Pending')" title="标记为待处理">
+                                    `<button class="action-btn status-btn" data-todo-id="${todo.id}" data-status="Pending" title="标记为待处理">
                                         <i class="fas fa-pause"></i>
                                     </button>`
                                 }
-                                <button class="action-btn export-todo-btn" onclick="todoApp.exportSingleTodo('${todo.id}')" title="导出此任务">
+                                <button class="action-btn export-todo-btn" data-todo-id="${todo.id}" title="导出此任务">
                                     <i class="fas fa-file-download"></i>
                                 </button>
                                 <button class="action-btn delete-btn" data-todo-id="${todo.id}" title="删除">
@@ -1416,6 +1571,111 @@ class TodoApp {
         document.removeEventListener('click', this.handleClickOutside);
     }
 
+    // 绑定所有按钮事件
+    bindButtonEvents() {
+        // 设置按钮
+        const settingsBtn = document.getElementById('settings-btn');
+        if (settingsBtn) {
+            settingsBtn.addEventListener('click', () => this.toggleSettingsMenu());
+        }
+
+        // 页面切换按钮
+        const tabBtns = document.querySelectorAll('.tab-btn');
+        tabBtns.forEach(btn => {
+            btn.addEventListener('click', () => {
+                const page = btn.dataset.page;
+                if (page) this.switchPage(page);
+            });
+        });
+
+        // 设置菜单按钮
+        const settingsSaveBtn = document.getElementById('settings-save-btn');
+        if (settingsSaveBtn) {
+            settingsSaveBtn.addEventListener('click', () => this.saveSettingsFromMenu());
+        }
+
+        const settingsResetBtn = document.getElementById('settings-reset-btn');
+        if (settingsResetBtn) {
+            settingsResetBtn.addEventListener('click', () => this.resetSettings());
+        }
+
+        // 标签选择按钮
+        const tagSelectorBtn = document.getElementById('tag-selector-btn');
+        if (tagSelectorBtn) {
+            tagSelectorBtn.addEventListener('click', () => this.openTagSelector());
+        }
+
+        // 筛选面板
+        const filterHeader = document.getElementById('filter-header');
+        if (filterHeader) {
+            filterHeader.addEventListener('click', () => this.toggleFilterPanel());
+        }
+
+        // 批量操作按钮
+        const selectAllBtn = document.getElementById('select-all-btn');
+        if (selectAllBtn) {
+            selectAllBtn.addEventListener('click', () => this.toggleSelectAll());
+        }
+
+        const batchCompleteBtn = document.getElementById('batch-complete-btn');
+        if (batchCompleteBtn) {
+            batchCompleteBtn.addEventListener('click', () => this.batchComplete());
+        }
+
+        const batchDeleteBtn = document.getElementById('batch-delete-btn');
+        if (batchDeleteBtn) {
+            batchDeleteBtn.addEventListener('click', () => this.batchDelete());
+        }
+
+        // 标签管理按钮
+        const createTagBtn = document.getElementById('create-tag-btn');
+        if (createTagBtn) {
+            createTagBtn.addEventListener('click', () => this.createTag());
+        }
+
+        // 分类管理按钮
+        const categoryTagSelectorBtn = document.getElementById('category-tag-selector-btn');
+        if (categoryTagSelectorBtn) {
+            categoryTagSelectorBtn.addEventListener('click', () => this.openCategoryTagSelector());
+        }
+
+        const createCategoryBtn = document.getElementById('create-category-btn');
+        if (createCategoryBtn) {
+            createCategoryBtn.addEventListener('click', () => this.createCategory());
+        }
+
+        // 导出按钮
+        const exportAllBtn = document.getElementById('export-all-btn');
+        if (exportAllBtn) {
+            exportAllBtn.addEventListener('click', () => this.exportToMarkdown());
+        }
+
+        const exportWeekBtn = document.getElementById('export-week-btn');
+        if (exportWeekBtn) {
+            exportWeekBtn.addEventListener('click', () => this.exportByWeek());
+        }
+
+        const exportRangeBtn = document.getElementById('export-range-btn');
+        if (exportRangeBtn) {
+            exportRangeBtn.addEventListener('click', () => this.exportByDateRange());
+        }
+
+        const exportTodayBtn = document.getElementById('export-today-btn');
+        if (exportTodayBtn) {
+            exportTodayBtn.addEventListener('click', () => this.exportToday());
+        }
+
+        const exportThisWeekBtn = document.getElementById('export-this-week-btn');
+        if (exportThisWeekBtn) {
+            exportThisWeekBtn.addEventListener('click', () => this.exportThisWeek());
+        }
+
+        const exportThisMonthBtn = document.getElementById('export-this-month-btn');
+        if (exportThisMonthBtn) {
+            exportThisMonthBtn.addEventListener('click', () => this.exportThisMonth());
+        }
+    }
+
     // 处理点击外部事件
     handleClickOutside = (event) => {
         const dropdown = document.getElementById('settings-dropdown');
@@ -1499,12 +1759,20 @@ class TodoApp {
         this.showSuccess('✅ 今日任务已导出！');
     }
 
-    // 快速导出 - 本周
+    // 快速导出 - 本周（不依赖页面上的周选择器，直接按当前周导出）
     exportThisWeek() {
-        const weekInput = document.getElementById('week-select');
-        if (weekInput && weekInput.value) {
-            this.exportByWeek();
+        const now = new Date();
+        const year = now.getFullYear();
+        const weekNumber = this.getWeekNumber(now);
+        const { start, end } = this.getWeekDateRange(year, weekNumber);
+        const weekTodos = this.getTodosInWeekRange(this.todos, start, end);
+        if (weekTodos.length === 0) {
+            this.showError('本周时间范围内没有任务记录');
+            return;
         }
+        const markdown = this.generateWeeklyReport(weekTodos, start, end, year, weekNumber);
+        this.downloadWeeklyMarkdown(markdown, year, weekNumber);
+        this.showSuccess(`✅ 第 ${weekNumber} 周的任务已导出！`);
     }
 
     // 快速导出 - 本月
@@ -1590,11 +1858,26 @@ class TodoApp {
             this.showSuccess(`标签 "${name}" 创建成功`);
             nameInput.value = '';
             colorInput.value = '#3b82f6';
-            await this.loadTags();
-            this.renderTagList();
-            this.renderTagSelector();
+            
+            // 重新加载标签列表，如果失败也不影响创建成功的结果
+            try {
+                await this.loadTags();
+                this.renderTagList();
+                this.renderTagSelector();
+            } catch (loadError) {
+                console.warn('重新加载标签列表失败:', loadError);
+                // 不显示错误，因为标签已经创建成功
+            }
         } catch (e) {
-            this.showError(`创建标签失败: ${e.message}`);
+            // 检查是否是唯一约束错误（只匹配创建标签时的错误）
+            if (e.message.includes('UNIQUE constraint failed: tags.name')) {
+                this.showError(`标签名称 "${name}" 已存在，请使用其他名称`);
+                // 高亮显示名称输入框
+                nameInput.focus();
+                nameInput.select();
+            } else {
+                this.showError(`创建标签失败: ${e.message}`);
+            }
         }
     }
 
@@ -1666,7 +1949,7 @@ class TodoApp {
                 return `
                     <div class="tag-selector-item ${isSelected ? 'selected' : ''}" 
                          style="border-left: 4px solid ${tag.color}"
-                         onclick="todoApp.toggleTagSelection('${tag.id}')">
+                         data-tag-id="${tag.id}">
                         <span class="tag-color-badge" style="background: ${tag.color}"></span>
                         <span class="tag-name">${tag.name}</span>
                         ${isSelected ? '<i class="fas fa-check"></i>' : ''}
@@ -1703,7 +1986,7 @@ class TodoApp {
             <span class="selected-tag" style="background: ${tag.color}15; border-color: ${tag.color}">
                 <span class="tag-dot" style="background: ${tag.color}"></span>
                 ${tag.name}
-                <i class="fas fa-times" onclick="todoApp.toggleTagSelection('${tag.id}')"></i>
+                <i class="fas fa-times" data-tag-id="${tag.id}"></i>
             </span>
         `).join('');
     }
@@ -1745,10 +2028,10 @@ class TodoApp {
                     <div class="category-stat">包含 ${cat.todo_count} 个任务</div>
                 </div>
                 <div class="category-actions">
-                    <button class="edit-btn-small" onclick="todoApp.editCategory('${cat.id}')" title="编辑分类信息">
+                    <button class="edit-btn-small" data-category-id="${cat.id}" data-action="edit" title="编辑分类信息">
                         <i class="fas fa-pen"></i>
                     </button>
-                    <button class="edit-btn-small" onclick="todoApp.editCategoryTags('${cat.id}')" title="编辑标签">
+                    <button class="edit-btn-small" data-category-id="${cat.id}" data-action="edit-tags" title="编辑标签">
                         <i class="fas fa-tags"></i>
                     </button>
                     <button class="delete-btn-small" data-category-id="${cat.id}" title="删除分类">
@@ -1793,11 +2076,26 @@ class TodoApp {
             colorInput.value = '#10b981';
             this.selectedCategoryTags = [];
             this.renderSelectedCategoryTags();
-            await this.loadCategories();
-            this.renderCategoryList();
-            this.renderCategoryFilter();
+            
+            // 重新加载分类列表，如果失败也不影响创建成功的结果
+            try {
+                await this.loadCategories();
+                this.renderCategoryList();
+                this.renderCategoryFilter();
+            } catch (loadError) {
+                console.warn('重新加载分类列表失败:', loadError);
+                // 不显示错误，因为分类已经创建成功
+            }
         } catch (e) {
-            this.showError(`创建分类失败: ${e.message}`);
+            // 检查是否是唯一约束错误（只匹配创建分类时的错误）
+            if (e.message.includes('UNIQUE constraint failed: categories.name')) {
+                this.showError(`分类名称 "${name}" 已存在，请使用其他名称`);
+                // 高亮显示名称输入框
+                nameInput.focus();
+                nameInput.select();
+            } else {
+                this.showError(`创建分类失败: ${e.message}`);
+            }
         }
     }
 
@@ -1866,7 +2164,7 @@ class TodoApp {
         container.innerHTML = this.tags.map(tag => {
             const isSelected = this.selectedCategoryTags.includes(tag.id);
             return `
-                <div class="tag-selector-item ${isSelected ? 'selected' : ''}" 
+                <div class="tag-selector-item category-tag-selector-item ${isSelected ? 'selected' : ''}" 
                      style="border-left: 4px solid ${tag.color}"
                      data-tag-id="${tag.id}">
                     <span class="tag-color-badge" style="background: ${tag.color}"></span>
@@ -1904,7 +2202,7 @@ class TodoApp {
             <span class="selected-tag" style="background: ${tag.color}15; border-color: ${tag.color}">
                 <span class="tag-dot" style="background: ${tag.color}"></span>
                 ${tag.name}
-                <i class="fas fa-times" onclick="todoApp.toggleCategoryTagSelection('${tag.id}')"></i>
+                <i class="fas fa-times" data-category-tag-id="${tag.id}"></i>
             </span>
         `).join('');
     }
@@ -1979,7 +2277,7 @@ class TodoApp {
             <div class="modal-content">
                 <div class="modal-header">
                     <h3><i class="fas fa-edit"></i> 编辑分类</h3>
-                    <button class="close-btn" onclick="this.closest('.modal').remove()">
+                    <button class="close-btn" data-action="close-modal">
                         <i class="fas fa-times"></i>
                     </button>
                 </div>
@@ -2000,10 +2298,10 @@ class TodoApp {
                     </div>
                 </div>
                 <div class="modal-footer">
-                    <button onclick="todoApp.saveCategoryInfo('${categoryId}')" class="btn-primary">
+                    <button data-action="save-category" data-category-id="${categoryId}" class="btn-primary">
                         <i class="fas fa-save"></i> 保存
                     </button>
-                    <button onclick="this.closest('.modal').remove()" class="btn-secondary">取消</button>
+                    <button data-action="close-modal" class="btn-secondary">取消</button>
                 </div>
             </div>
         `;
@@ -2380,10 +2678,23 @@ class TodoApp {
 
     // ==================== 按周导出功能 ====================
 
+    // 判断任务是否在时间跨度上与该周有交集（创建时间或截止时间落在该周内）
+    getTodosInWeekRange(todos, start, end) {
+        return todos.filter(todo => {
+            const created = new Date(todo.created_at);
+            const inByCreated = created >= start && created <= end;
+            if (!todo.due_date) return inByCreated;
+            const due = new Date(todo.due_date);
+            due.setHours(23, 59, 59, 999);
+            const inByDue = due >= start && due <= end;
+            return inByCreated || inByDue;
+        });
+    }
+
     // 按周导出
     exportByWeek() {
         const weekInput = document.getElementById('week-select');
-        let weekValue = weekInput.value;
+        let weekValue = weekInput ? weekInput.value : '';
         
         // 如果没有选择周，使用当前周
         if (!weekValue) {
@@ -2391,7 +2702,7 @@ class TodoApp {
             const year = now.getFullYear();
             const week = this.getWeekNumber(now);
             weekValue = `${year}-W${String(week).padStart(2, '0')}`;
-            weekInput.value = weekValue;
+            if (weekInput) weekInput.value = weekValue;
         }
         
         // 解析周值
@@ -2401,11 +2712,8 @@ class TodoApp {
         // 获取该周的开始和结束日期
         const { start, end } = this.getWeekDateRange(parseInt(year), weekNumber);
         
-        // 筛选该周的任务
-        const weekTodos = this.todos.filter(todo => {
-            const createdDate = new Date(todo.created_at);
-            return createdDate >= start && createdDate <= end;
-        });
+        // 筛选时间跨度上包含该周的任务（创建或截止在本周）
+        const weekTodos = this.getTodosInWeekRange(this.todos, start, end);
         
         if (weekTodos.length === 0) {
             this.showError('该周没有任务记录');

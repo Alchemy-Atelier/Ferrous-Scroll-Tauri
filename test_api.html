@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tauri API 测试</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .test-section {
+            margin: 20px 0;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        .test-button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        .test-button:hover {
+            background: #0056b3;
+        }
+        .result {
+            margin-top: 10px;
+            padding: 10px;
+            border-radius: 5px;
+            font-family: monospace;
+        }
+        .success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .info {
+            background: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+    </style>
+</head>
+<body>
+    <h1>Tauri v2 API 测试页面</h1>
+    <p>此页面用于测试 Tauri v2 API 是否正常工作</p>
+
+    <div class="test-section">
+        <h3>1. API 可用性测试</h3>
+        <button class="test-button" onclick="testAPI()">测试 API 可用性</button>
+        <div id="api-result" class="result" style="display: none;"></div>
+    </div>
+
+    <div class="test-section">
+        <h3>2. 基本命令测试</h3>
+        <button class="test-button" onclick="testGetConfig()">测试获取配置</button>
+        <button class="test-button" onclick="testGetAllTags()">测试获取标签</button>
+        <button class="test-button" onclick="testGetAllTodos()">测试获取任务</button>
+        <div id="command-result" class="result" style="display: none;"></div>
+    </div>
+
+    <div class="test-section">
+        <h3>3. Dialog API 测试</h3>
+        <button class="test-button" onclick="testDialog()">测试确认对话框</button>
+        <div id="dialog-result" class="result" style="display: none;"></div>
+    </div>
+
+    <div class="test-section">
+        <h3>4. 创建任务测试</h3>
+        <button class="test-button" onclick="testCreateTodo()">测试创建任务</button>
+        <div id="create-result" class="result" style="display: none;"></div>
+    </div>
+
+    <!-- 包含相同的 Tauri API 初始化脚本 -->
+    <script>
+      (function() {
+        console.log('初始化 Tauri v2 API...');
+        
+        // 等待 Tauri 完全加载
+        const initTauriAPI = async () => {
+          // 等待 Tauri 核心加载
+          let attempts = 0;
+          const maxAttempts = 100; // 最多等待10秒
+          
+          while (attempts < maxAttempts) {
+            if (window.__TAURI_INTERNALS__ && window.__TAURI_INTERNALS__.invoke) {
+              console.log('✅ Tauri v2 API 已加载');
+              break;
+            }
+            await new Promise(resolve => setTimeout(resolve, 100));
+            attempts++;
+          }
+          
+          if (attempts >= maxAttempts) {
+            console.error('❌ Tauri API 加载超时');
+            return;
+          }
+          
+          // 确保 __TAURI__ 对象存在
+          if (!window.__TAURI__) {
+            window.__TAURI__ = {};
+          }
+          
+          // 创建兼容的 invoke 方法
+          window.__TAURI__.invoke = async function(cmd, args = {}) {
+            console.log(`🔧 调用命令: ${cmd}`, args);
+            
+            try {
+              // Tauri v2 标准方式
+              if (window.__TAURI_INTERNALS__ && window.__TAURI_INTERNALS__.invoke) {
+                const result = await window.__TAURI_INTERNALS__.invoke(cmd, args);
+                console.log(`✅ 命令 ${cmd} 成功:`, result);
+                return result;
+              }
+              // 备用方式：尝试 core API
+              else if (window.__TAURI__ && window.__TAURI__.core && window.__TAURI__.core.invoke) {
+                const result = await window.__TAURI__.core.invoke(cmd, args);
+                console.log(`✅ 命令 ${cmd} 成功 (core):`, result);
+                return result;
+              }
+              // 最后备用：尝试 IPC
+              else if (window.__TAURI_IPC__ && window.__TAURI_IPC__.invoke) {
+                const result = await window.__TAURI_IPC__.invoke(cmd, args);
+                console.log(`✅ 命令 ${cmd} 成功 (IPC):`, result);
+                return result;
+              }
+              else {
+                throw new Error('Tauri API 不可用 - 找不到 invoke 方法');
+              }
+            } catch (error) {
+              console.error(`❌ 调用 ${cmd} 失败:`, error);
+              throw error;
+            }
+          };
+          
+          // 创建 Dialog API
+          window.__TAURI__.dialog = {
+            confirm: async function(message, options = {}) {
+              console.log('🔧 调用 dialog.confirm:', message, options);
+              try {
+                // 尝试使用 Tauri v2 的 dialog 插件
+                if (window.__TAURI_INTERNALS__ && window.__TAURI_INTERNALS__.dialog && window.__TAURI_INTERNALS__.dialog.confirm) {
+                  const result = await window.__TAURI_INTERNALS__.dialog.confirm(message, options);
+                  console.log('✅ dialog.confirm 结果:', result);
+                  return result;
+                }
+                // 备用：使用 invoke 调用
+                else {
+                  const result = await window.__TAURI__.invoke('plugin:dialog|confirm', {
+                    message: message,
+                    title: options.title || '确认'
+                  });
+                  console.log('✅ dialog.confirm 结果 (invoke):', result);
+                  return result;
+                }
+              } catch (error) {
+                console.error('❌ dialog.confirm 失败:', error);
+                // 最后的备用方案：使用浏览器原生 confirm
+                console.warn('⚠️ 使用浏览器原生 confirm 作为备用方案');
+                return confirm(message);
+              }
+            }
+          };
+          
+          console.log('✅ Tauri v2 API 初始化完成');
+          console.log('🔍 可用的 Tauri 对象:', {
+            __TAURI__: !!window.__TAURI__,
+            __TAURI_INTERNALS__: !!window.__TAURI_INTERNALS__,
+            __TAURI_IPC__: !!window.__TAURI_IPC__,
+            dialog: !!window.__TAURI__.dialog,
+            invoke: !!window.__TAURI__.invoke
+          });
+        };
+        
+        // 立即开始初始化
+        initTauriAPI();
+      })();
+
+      // 测试函数
+      async function testAPI() {
+        const resultDiv = document.getElementById('api-result');
+        resultDiv.style.display = 'block';
+        
+        try {
+          const apiStatus = {
+            __TAURI__: !!window.__TAURI__,
+            __TAURI_INTERNALS__: !!window.__TAURI_INTERNALS__,
+            __TAURI_IPC__: !!window.__TAURI_IPC__,
+            dialog: !!(window.__TAURI__ && window.__TAURI__.dialog),
+            invoke: !!(window.__TAURI__ && window.__TAURI__.invoke)
+          };
+          
+          resultDiv.className = 'result success';
+          resultDiv.innerHTML = '<strong>API 状态:</strong><br>' + 
+            Object.entries(apiStatus).map(([key, value]) => 
+              `${key}: ${value ? '✅' : '❌'}`
+            ).join('<br>');
+        } catch (error) {
+          resultDiv.className = 'result error';
+          resultDiv.innerHTML = '<strong>错误:</strong> ' + error.message;
+        }
+      }
+
+      async function testGetConfig() {
+        const resultDiv = document.getElementById('command-result');
+        resultDiv.style.display = 'block';
+        
+        try {
+          const config = await window.__TAURI__.invoke('get_config');
+          resultDiv.className = 'result success';
+          resultDiv.innerHTML = '<strong>配置获取成功:</strong><br>' + 
+            JSON.stringify(config, null, 2);
+        } catch (error) {
+          resultDiv.className = 'result error';
+          resultDiv.innerHTML = '<strong>获取配置失败:</strong> ' + error.message;
+        }
+      }
+
+      async function testGetAllTags() {
+        const resultDiv = document.getElementById('command-result');
+        resultDiv.style.display = 'block';
+        
+        try {
+          const tags = await window.__TAURI__.invoke('get_all_tags');
+          resultDiv.className = 'result success';
+          resultDiv.innerHTML = '<strong>标签获取成功:</strong><br>' + 
+            JSON.stringify(tags, null, 2);
+        } catch (error) {
+          resultDiv.className = 'result error';
+          resultDiv.innerHTML = '<strong>获取标签失败:</strong> ' + error.message;
+        }
+      }
+
+      async function testGetAllTodos() {
+        const resultDiv = document.getElementById('command-result');
+        resultDiv.style.display = 'block';
+        
+        try {
+          const todos = await window.__TAURI__.invoke('get_all_todos');
+          resultDiv.className = 'result success';
+          resultDiv.innerHTML = '<strong>任务获取成功:</strong><br>' + 
+            `共 ${todos.length} 个任务<br>` +
+            JSON.stringify(todos.slice(0, 3), null, 2) + 
+            (todos.length > 3 ? '<br>...' : '');
+        } catch (error) {
+          resultDiv.className = 'result error';
+          resultDiv.innerHTML = '<strong>获取任务失败:</strong> ' + error.message;
+        }
+      }
+
+      async function testDialog() {
+        const resultDiv = document.getElementById('dialog-result');
+        resultDiv.style.display = 'block';
+        
+        try {
+          const confirmed = await window.__TAURI__.dialog.confirm('这是一个测试对话框，请点击确认或取消', {
+            title: '测试对话框'
+          });
+          resultDiv.className = 'result success';
+          resultDiv.innerHTML = '<strong>对话框测试结果:</strong> ' + (confirmed ? '用户点击了确认' : '用户点击了取消');
+        } catch (error) {
+          resultDiv.className = 'result error';
+          resultDiv.innerHTML = '<strong>对话框测试失败:</strong> ' + error.message;
+        }
+      }
+
+      async function testCreateTodo() {
+        const resultDiv = document.getElementById('create-result');
+        resultDiv.style.display = 'block';
+        
+        try {
+          const newTodo = await window.__TAURI__.invoke('create_todo', {
+            title: '测试任务 - ' + new Date().toLocaleTimeString(),
+            description: '这是一个通过API测试创建的任务',
+            priority: 'Medium',
+            due_date: null,
+            tag_ids: []
+          });
+          resultDiv.className = 'result success';
+          resultDiv.innerHTML = '<strong>任务创建成功:</strong><br>' + 
+            JSON.stringify(newTodo, null, 2);
+        } catch (error) {
+          resultDiv.className = 'result error';
+          resultDiv.innerHTML = '<strong>创建任务失败:</strong> ' + error.message;
+        }
+      }
+    </script>
+</body>
+</html>

@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>调试页面</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; }
+        .test { margin: 10px 0; padding: 10px; border: 1px solid #ccc; }
+        button { padding: 10px; margin: 5px; }
+        .log { background: #f5f5f5; padding: 10px; margin: 10px 0; font-family: monospace; }
+    </style>
+</head>
+<body>
+    <h1>Tauri API 调试页面</h1>
+    
+    <div class="test">
+        <h3>1. 检查 Tauri 对象</h3>
+        <button onclick="checkTauriObjects()">检查对象</button>
+        <div id="objects-log" class="log"></div>
+    </div>
+    
+    <div class="test">
+        <h3>2. 测试 invoke 方法</h3>
+        <button onclick="testInvoke()">测试 invoke</button>
+        <div id="invoke-log" class="log"></div>
+    </div>
+    
+    <div class="test">
+        <h3>3. 测试 Dialog</h3>
+        <button onclick="testDialog()">测试对话框</button>
+        <div id="dialog-log" class="log"></div>
+    </div>
+
+    <script>
+        function log(elementId, message) {
+            const element = document.getElementById(elementId);
+            element.innerHTML += new Date().toLocaleTimeString() + ': ' + message + '<br>';
+        }
+
+        function checkTauriObjects() {
+            const logId = 'objects-log';
+            document.getElementById(logId).innerHTML = '';
+            
+            log(logId, '检查 Tauri 对象...');
+            log(logId, '__TAURI__: ' + (window.__TAURI__ ? '存在' : '不存在'));
+            log(logId, '__TAURI_INTERNALS__: ' + (window.__TAURI_INTERNALS__ ? '存在' : '不存在'));
+            log(logId, '__TAURI_IPC__: ' + (window.__TAURI_IPC__ ? '存在' : '不存在'));
+            
+            if (window.__TAURI__) {
+                log(logId, '__TAURI__.invoke: ' + (window.__TAURI__.invoke ? '存在' : '不存在'));
+                log(logId, '__TAURI__.dialog: ' + (window.__TAURI__.dialog ? '存在' : '不存在'));
+            }
+            
+            if (window.__TAURI_INTERNALS__) {
+                log(logId, '__TAURI_INTERNALS__.invoke: ' + (window.__TAURI_INTERNALS__.invoke ? '存在' : '不存在'));
+                log(logId, '__TAURI_INTERNALS__.dialog: ' + (window.__TAURI_INTERNALS__.dialog ? '存在' : '不存在'));
+            }
+        }
+
+        async function testInvoke() {
+            const logId = 'invoke-log';
+            document.getElementById(logId).innerHTML = '';
+            
+            log(logId, '开始测试 invoke...');
+            
+            try {
+                // 尝试不同的调用方式
+                if (window.__TAURI_INTERNALS__ && window.__TAURI_INTERNALS__.invoke) {
+                    log(logId, '使用 __TAURI_INTERNALS__.invoke');
+                    const result = await window.__TAURI_INTERNALS__.invoke('get_config');
+                    log(logId, '成功: ' + JSON.stringify(result));
+                } else if (window.__TAURI_IPC__ && window.__TAURI_IPC__.invoke) {
+                    log(logId, '使用 __TAURI_IPC__.invoke');
+                    const result = await window.__TAURI_IPC__.invoke('get_config');
+                    log(logId, '成功: ' + JSON.stringify(result));
+                } else {
+                    log(logId, '错误: 没有可用的 invoke 方法');
+                }
+            } catch (error) {
+                log(logId, '错误: ' + error.message);
+            }
+        }
+
+        async function testDialog() {
+            const logId = 'dialog-log';
+            document.getElementById(logId).innerHTML = '';
+            
+            log(logId, '开始测试对话框...');
+            
+            try {
+                if (window.__TAURI_INTERNALS__ && window.__TAURI_INTERNALS__.dialog && window.__TAURI_INTERNALS__.dialog.confirm) {
+                    log(logId, '使用 __TAURI_INTERNALS__.dialog.confirm');
+                    const result = await window.__TAURI_INTERNALS__.dialog.confirm('这是一个测试对话框', { title: '测试' });
+                    log(logId, '结果: ' + result);
+                } else {
+                    log(logId, '使用浏览器原生 confirm');
+                    const result = confirm('这是一个测试对话框');
+                    log(logId, '结果: ' + result);
+                }
+            } catch (error) {
+                log(logId, '错误: ' + error.message);
+            }
+        }
+
+        // 页面加载时自动检查
+        window.addEventListener('load', () => {
+            setTimeout(checkTauriObjects, 1000);
+        });
+    </script>
+</body>
+</html>
